@@ -2,6 +2,8 @@ import Sigma from "sigma";
 import Graph from "graphology";
 import { parse } from "graphology-gexf";
 import { Coordinates, EdgeDisplayData, NodeDisplayData } from "sigma/types";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import FA2Layout from "graphology-layout-forceatlas2/worker";
 
 // Load and parse GEXF graph
 async function loadGraph(): Promise<Graph> {
@@ -9,7 +11,6 @@ async function loadGraph(): Promise<Graph> {
   const gexfText = await response.text();
 
   const graph = parse(Graph, gexfText);
-
 
   return graph;
 }
@@ -19,10 +20,41 @@ async function loadGraph(): Promise<Graph> {
 loadGraph().then((graph) => {
   const container = document.getElementById("sigma-container") as HTMLElement;
   const searchInput = document.getElementById("search-input") as HTMLInputElement;
-  const searchSuggestions = document.getElementById("suggestions") as HTMLDataListElement;
+  
+  let labels: any[] = [];
 
-  const renderer = new Sigma(graph, container);
+  graph.mapNodes((item, attri) => {
+    labels.push(...attri.labels);
+  });
+  labels = [...new Set(labels)];
 
+
+  new autoComplete({ 
+    selector: "#search-input",
+    data: {
+      src: graph.mapNodes((item, attri) => attri.label)
+    }
+  });
+
+
+  const renderer = new Sigma(graph, container, {
+
+  });
+
+  const sensibleSettings = forceAtlas2.inferSettings(graph);
+  const fa2Layout = new FA2Layout(graph, {
+    settings: sensibleSettings,
+  });
+
+    // correlate start/stop actions with state management
+    function stopFA2() {
+      fa2Layout.stop();
+    }
+    function startFA2() {
+      fa2Layout.start();
+    }
+    
+// startFA2()
 // Type and declare internal state:
 interface State {
   hoveredNode?: string;
@@ -37,11 +69,7 @@ interface State {
 }
 const state: State = { searchQuery: "" };
 
-// Feed the datalist autocomplete values:
-searchSuggestions.innerHTML = graph
-  .nodes()
-  .map((node) => `<option value="${graph.getNodeAttribute(node, "label")}"></option>`)
-  .join("\n");
+
 
 // Actions:
 function setSearchQuery(query: string) {
@@ -89,6 +117,7 @@ function setSearchQuery(query: string) {
     skipIndexation: true,
   });
 }
+
 function setHoveredNode(node?: string) {
   if (node) {
     state.hoveredNode = node;
@@ -111,6 +140,7 @@ function setHoveredNode(node?: string) {
 searchInput.addEventListener("input", () => {
   setSearchQuery(searchInput.value || "");
 });
+
 searchInput.addEventListener("blur", () => {
   setSearchQuery("");
 });
@@ -133,17 +163,22 @@ renderer.setSetting("nodeReducer", (node, data) => {
   if (state.hoveredNeighbors && !state.hoveredNeighbors.has(node) && state.hoveredNode !== node) {
     res.label = "";
     res.color = "#f6f6f6";
+    res.hidden = true
   }
 
   if (state.selectedNode === node) {
     res.highlighted = true;
+    res.forceLabel = true;
   } else if (state.suggestions) {
     if (state.suggestions.has(node)) {
       res.forceLabel = true;
     } else {
       res.label = "";
       res.color = "#f6f6f6";
+    res.hidden = true
+
     }
+
   }
 
   return res;
@@ -156,12 +191,17 @@ renderer.setSetting("nodeReducer", (node, data) => {
 //    suggestions
 renderer.setSetting("edgeReducer", (edge, data) => {
   const res: Partial<EdgeDisplayData> = { ...data };
-
+  res.color = res.color
+  .replace("rgb(", "rgba(")
+  .replace(")", ", 0.8)");
   if (
     state.hoveredNode &&
     !graph.extremities(edge).every((n) => n === state.hoveredNode || graph.areNeighbors(n, state.hoveredNode))
   ) {
     res.hidden = true;
+    res.color = "#000000"
+  }else{
+    
   }
 
   if (
@@ -169,9 +209,13 @@ renderer.setSetting("edgeReducer", (edge, data) => {
     (!state.suggestions.has(graph.source(edge)) || !state.suggestions.has(graph.target(edge)))
   ) {
     res.hidden = true;
+    res.color = "#000000"
+
   }
 
   return res;
 });
+
+
 
 });

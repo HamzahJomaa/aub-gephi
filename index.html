@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Sigma GEXF Viewer with Controls</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/css/autoComplete.min.css">
+
   <style>
     html, body {
       margin: 0;
@@ -34,10 +36,11 @@
       z-index: 9999;
     }
   </style>
+  
 </head>
 <body>
   <div id="search">
-    <input type="search" id="search-input" list="suggestions" placeholder="Try searching for a node...">
+    <input id="search-input" list="suggestions" placeholder="Try searching for a node...">
     <datalist id="suggestions"></datalist>
   </div>
   <div id="sigma-container"></div>
@@ -52,5 +55,6 @@
     </label>
   </div>
   <script type="module" src="/src/main.ts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"></script>
 </body>
 </html>
