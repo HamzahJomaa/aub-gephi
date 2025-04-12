@@ -28,17 +28,79 @@ loadGraph().then((graph) => {
   });
   labels = [...new Set(labels)];
 
+  // Create and populate labels container with checkboxes
+  const labelsContainer = document.getElementById('labels-container');
+  
+  // Add scrollable styles to the container
+  Object.assign(labelsContainer.style, {
+    maxHeight: '60vh',
+    overflowY: 'auto',
+    overflowX: 'hidden'
+  });
+
+  labels.forEach(label => {
+    const checkboxDiv = document.createElement('div');
+    
+    // Get the color from the first node that has this label
+    const nodeWithLabel = graph.filterNodes((node, attributes) => 
+      attributes.labels?.includes(label)
+    )[0];
+    const labelColor = graph.getNodeAttribute(nodeWithLabel, 'color') || '#666666';
+    
+    checkboxDiv.className = 'label-item';
+    checkboxDiv.style.color = labelColor;
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `label-${label}`;
+    checkbox.value = label;
+    
+    // Add checkbox event listener
+    checkbox.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.checked) {
+        state.selectedLabels.add(label);
+      } else {
+        state.selectedLabels.delete(label);
+      }
+      renderer.refresh();
+    });
+    
+    const labelElement = document.createElement('label');
+    labelElement.htmlFor = `label-${label}`;
+    labelElement.textContent = label;
+    
+    checkboxDiv.appendChild(checkbox);
+    checkboxDiv.appendChild(labelElement);
+    labelsContainer.appendChild(checkboxDiv);
+  });
 
   new autoComplete({ 
     selector: "#search-input",
     data: {
-      src: graph.mapNodes((item, attri) => attri.label)
+      src: () => {
+        const nodes = graph.nodes()
+          .filter(n => {
+            if (state.selectedLabels.size > 0) {
+              const nodeLabels = graph.getNodeAttribute(n, 'labels') || [];
+              return nodeLabels.some(label => state.selectedLabels.has(label));
+            }
+            return true;
+          })
+          .map((n) => graph.getNodeAttribute(n, "label"));
+        return nodes;
+      }
+    },
+    resultsList: {
+      maxResults: 10
     }
   });
 
 
   const renderer = new Sigma(graph, container, {
-
+    renderLabels: true,
+    minNodeSize: 3,
+    maxNodeSize: 10,
   });
 
   const sensibleSettings = forceAtlas2.inferSettings(graph);
@@ -59,6 +121,7 @@ loadGraph().then((graph) => {
 interface State {
   hoveredNode?: string;
   searchQuery: string;
+  selectedLabels: Set<string>;  // Add this new state property
 
   // State derived from query:
   selectedNode?: string;
@@ -67,7 +130,10 @@ interface State {
   // State derived from hovered node:
   hoveredNeighbors?: Set<string>;
 }
-const state: State = { searchQuery: "" };
+const state: State = { 
+  searchQuery: "", 
+  selectedLabels: new Set()  // Initialize the set
+};
 
 
 
@@ -81,38 +147,34 @@ function setSearchQuery(query: string) {
     const lcQuery = query.toLowerCase();
     const suggestions = graph
       .nodes()
+      .filter(n => {
+        // If labels are selected, only search nodes with those labels
+        if (state.selectedLabels.size > 0) {
+          const nodeLabels = graph.getNodeAttribute(n, 'labels') || [];
+          return nodeLabels.some(label => state.selectedLabels.has(label));
+        }
+        return true; // If no labels selected, search all nodes
+      })
       .map((n) => ({ id: n, label: graph.getNodeAttribute(n, "label") as string }))
       .filter(({ label }) => label.toLowerCase().includes(lcQuery));
 
-    // If we have a single perfect match, them we remove the suggestions, and
-    // we consider the user has selected a node through the datalist
-    // autocomplete:
     if (suggestions.length === 1 && suggestions[0].label === query) {
       state.selectedNode = suggestions[0].id;
       state.suggestions = undefined;
 
-      // Move the camera to center it on the selected node:
       const nodePosition = renderer.getNodeDisplayData(state.selectedNode) as Coordinates;
       renderer.getCamera().animate(nodePosition, {
         duration: 500,
       });
-    }
-    // Else, we display the suggestions list:
-    else {
+    } else {
       state.selectedNode = undefined;
       state.suggestions = new Set(suggestions.map(({ id }) => id));
     }
-  }
-  // If the query is empty, then we reset the selectedNode / suggestions state:
-  else {
+  } else {
     state.selectedNode = undefined;
     state.suggestions = undefined;
   }
 
-  // Refresh rendering
-  // You can directly call `renderer.refresh()`, but if you need performances
-  // you can provide some options to the refresh method.
-  // In this case, we don't touch the graph data so we can skip its reindexation
   renderer.refresh({
     skipIndexation: true,
   });
@@ -157,8 +219,26 @@ renderer.on("leaveNode", () => {
 // 1. If a node is selected, it is highlighted
 // 2. If there is query, all non-matching nodes are greyed
 // 3. If there is a hovered node, all non-neighbor nodes are greyed
+// Modify the nodeReducer
 renderer.setSetting("nodeReducer", (node, data) => {
   const res: Partial<NodeDisplayData> = { ...data };
+  // Normalize outlier sizes
+  if (res.size) {
+    if (res.size > 10) res.size = 10;
+    if (res.size < 2) res.size = res.size * 1.5;
+  }
+
+  // Handle label filtering
+  if (state.selectedLabels.size > 0) {
+    const nodeLabels = graph.getNodeAttribute(node, 'labels') || [];
+    const hasSelectedLabel = nodeLabels.some(label => state.selectedLabels.has(label));
+    if (!hasSelectedLabel) {
+      res.hidden = true;
+      res.color = "#f6f6f6";
+      res.label = "";
+      return res;
+    }
+  }
 
   if (state.hoveredNeighbors && !state.hoveredNeighbors.has(node) && state.hoveredNode !== node) {
     res.label = "";
