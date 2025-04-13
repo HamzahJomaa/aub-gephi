@@ -39,10 +39,6 @@
   
 </head>
 <body>
-  <div id="search">
-    <input id="search-input" list="suggestions" placeholder="Try searching for a node...">
-    <datalist id="suggestions"></datalist>
-  </div>
   <div id="sigma-container"></div>
 
   <div id="controls">
@@ -54,7 +50,11 @@
       <input type="range" id="labels-threshold" min="0" max="10" step="0.1" />
     </label>
   </div>
-  <div id="labels-container" style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);"></div>
+  <div id="labels-container" style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+    <div id="search">
+      <input id="search-input" list="suggestions" placeholder="Try searching for a node...">
+    </div>
+  </div>
   <script type="module" src="/src/main.ts"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.9/dist/autoComplete.min.js"></script>
 </body>
